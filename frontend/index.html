@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Downloader - Premium</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    <div class="container">
+        <header>
+            <h1>YouTube <span>Downloader</span></h1>
+            <p class="subtitle">Descarga tus videos y audio favoritos en segundos</p>
+        </header>
+
+        <main>
+            <div class="input-card">
+                <div class="input-group">
+                    <input type="text" id="youtubeUrl" placeholder="Pega el link de YouTube aquí..." autocomplete="off">
+                    <button id="getInfoBtn">
+                        <span class="btn-text">Descargar</span>
+                        <div class="btn-loader hidden"></div>
+                    </button>
+                </div>
+            </div>
+
+            <div id="videoCard" class="video-card hidden">
+                <div id="videoInfo"></div>
+                <div class="actions">
+                    <button id="downloadMp3Btn" class="download-btn audio">
+                        <span class="icon">🎵</span> Descargar MP3
+                    </button>
+                    <button id="downloadVideoBtn" class="download-btn video">
+                        <span class="icon">🎬</span> Descargar Video
+                    </button>
+                </div>
+            </div>
+
+            <div id="progressCard" class="progress-card hidden">
+                <h3>Progreso de Descarga</h3>
+                <div class="terminal" id="progressOutput"></div>
+            </div>
+
+            <div id="errorMessage" class="error-msg hidden"></div>
+        </main>
+
+        <footer>
+            <p>&copy; 2026 YouTube Downloader Premium - Powered by yt-dlp</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
