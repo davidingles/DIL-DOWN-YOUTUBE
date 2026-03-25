@@ -1,36 +1,28 @@
 const express = require('express');
 const ytdl = require('@ybd-project/ytdl-core');
-const ffmpeg = require('ffmpeg-static');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 const os = require('os');
 
 const app = express();
-const PORT = 3000;
 
 app.use(cors());
 app.use(express.json());
 
-// Serving frontend
-app.use(express.static(path.join(__dirname, '../frontend')));
-
-const downloadsDir = path.join(os.tmpdir(), 'downloads');
-if (!fs.existsSync(downloadsDir)) {
-    fs.mkdirSync(downloadsDir, { recursive: true });
-}
-app.use('/downloads', express.static(downloadsDir));
-
-// YouTube Agent with Cookies support
+// YouTube Agent with Cookies support - initialized lazily
 let ytdlAgent;
-try {
-    if (process.env.YOUTUBE_COOKIES) {
-        const cookies = JSON.parse(process.env.YOUTUBE_COOKIES);
-        ytdlAgent = ytdl.createAgent(cookies);
-        console.log('YouTube Agent created with cookies.');
+function getAgent() {
+    if (ytdlAgent) return ytdlAgent;
+    try {
+        if (process.env.YOUTUBE_COOKIES) {
+            const cookies = JSON.parse(process.env.YOUTUBE_COOKIES);
+            ytdlAgent = ytdl.createAgent(cookies);
+            console.log('YouTube Agent created with cookies.');
+        }
+    } catch (error) {
+        console.error('Error initializing YouTube Agent with cookies:', error.message);
     }
-} catch (error) {
-    console.error('Error initializing YouTube Agent with cookies:', error.message);
+    return ytdlAgent;
 }
 
 module.exports = app;
@@ -47,25 +39,19 @@ app.get('/api/video-info', async (req, res) => {
     }
 
     try {
-        const info = await ytdl.getInfo(url, { agent: ytdlAgent });
+        const agent = getAgent();
+        const info = await ytdl.getInfo(url, { agent });
         
         res.json({
             id: info.videoDetails.videoId,
             title: info.videoDetails.title,
             thumbnail: info.videoDetails.thumbnails[info.videoDetails.thumbnails.length - 1].url,
             duration: parseInt(info.videoDetails.lengthSeconds),
-            uploader: info.videoDetails.author.name,
-            formats: info.formats.map(f => ({
-                itags: f.itag,
-                quality: f.qualityLabel || f.audioQuality,
-                container: f.container,
-                hasVideo: f.hasVideo,
-                hasAudio: f.hasAudio
-            }))
+            uploader: info.videoDetails.author.name
         });
     } catch (error) {
         console.error('Error fetching video info:', error);
-        res.status(500).json({ error: 'Failed to get video information: ' + error.message });
+        res.status(500).json({ error: 'SERVER_ERROR: ' + error.message });
     }
 });
 
@@ -78,7 +64,8 @@ app.get('/api/download', async (req, res) => {
     }
 
     try {
-        const info = await ytdl.getInfo(url, { agent: ytdlAgent });
+        const agent = getAgent();
+        const info = await ytdl.getInfo(url, { agent });
         const title = info.videoDetails.title.replace(/[^\x00-\x7F]/g, "").replace(/[\\/:"*?<>|]/g, "_");
         const extension = format === 'mp3' ? 'mp3' : 'mp4';
         const fileName = `${title}.${extension}`;
@@ -90,27 +77,21 @@ app.get('/api/download', async (req, res) => {
             ? { quality: 'highestaudio', filter: 'audioonly' }
             : { quality: 'highest', filter: 'audioandvideo' };
 
-        const stream = ytdl(url, { ...options, agent: ytdlAgent });
+        const stream = ytdl(url, { ...options, agent });
         
         stream.pipe(res);
 
         stream.on('error', (err) => {
             console.error('Stream error:', err);
             if (!res.headersSent) {
-                res.status(500).json({ error: err.message });
+                res.status(500).json({ error: 'STREAM_ERROR: ' + err.message });
             }
         });
 
     } catch (error) {
         console.error('Error during download:', error);
         if (!res.headersSent) {
-            res.status(500).json({ error: error.message });
+            res.status(500).json({ error: 'DOWNLOAD_ERROR: ' + error.message });
         }
     }
 });
-
-if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-    app.listen(PORT, () => {
-        console.log(`Backend server running on http://localhost:${PORT}`);
-    });
-}
