@@ -75,7 +75,7 @@ app.post('/api/download', async (req, res) => {
     }
 
     try {
-        const info = await ytdl.getInfo(url);
+        const info = await ytdl.getInfo(url, { agent: ytdlAgent });
         const title = info.videoDetails.title.replace(/[^\x00-\x7F]/g, "").replace(/[\\/:"*?<>|]/g, "_");
         const fileName = `${title}.${format === 'mp3' ? 'mp3' : 'mp4'}`;
         const filePath = path.join(downloadsDir, fileName);
