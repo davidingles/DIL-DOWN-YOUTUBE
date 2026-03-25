@@ -1,5 +1,5 @@
 const express = require('express');
-const ytDlp = require('yt-dlp-exec');
+const ytdl = require('@distube/ytdl-core');
 const ffmpeg = require('ffmpeg-static');
 const cors = require('cors');
 const path = require('path');
@@ -32,22 +32,21 @@ app.get('/api/video-info', async (req, res) => {
     }
 
     try {
-        const info = await ytDlp(url, {
-            dumpJson: true,
-            noWarnings: true,
-            noCallHome: true,
-            noCheckCertificate: true,
-            preferFreeFormats: true,
-            youtubeSkipDashManifest: true,
-        });
-
+        const info = await ytdl.getInfo(url);
+        
         res.json({
-            id: info.id,
-            title: info.title,
-            thumbnail: info.thumbnail,
-            duration: info.duration,
-            uploader: info.uploader,
-            formats: info.formats.filter(f => f.vcodec !== 'none' || f.acodec !== 'none')
+            id: info.videoDetails.videoId,
+            title: info.videoDetails.title,
+            thumbnail: info.videoDetails.thumbnails[info.videoDetails.thumbnails.length - 1].url,
+            duration: parseInt(info.videoDetails.lengthSeconds),
+            uploader: info.videoDetails.author.name,
+            formats: info.formats.map(f => ({
+                itags: f.itag,
+                quality: f.qualityLabel || f.audioQuality,
+                container: f.container,
+                hasVideo: f.hasVideo,
+                hasAudio: f.hasAudio
+            }))
         });
     } catch (error) {
         console.error('Error fetching video info:', error);
@@ -63,63 +62,46 @@ app.post('/api/download', async (req, res) => {
         return res.status(400).json({ error: 'URL and format are required' });
     }
 
-    // We use a temporary filename or let yt-dlp handle it
-    // For streaming, it's better to pipe the output
-    
-    let args = [
-        url,
-        '--ffmpeg-location', ffmpeg,
-        '--no-warnings',
-        '--restrict-filenames',
-        '-o', path.join(downloadsDir, '%(title)s.%(ext)s')
-    ];
-
-    if (format === 'mp3') {
-        args.push('-x', '--audio-format', 'mp3');
-    } else {
-        args.push('-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]');
-    }
-
-    res.writeHead(200, {
-        'Content-Type': 'text/plain',
-        'Transfer-Encoding': 'chunked'
-    });
-    res.write('Starting download...\n');
-
     try {
-        const process = ytDlp.exec(url, {
-            output: path.join(downloadsDir, '%(title)s.%(ext)s'),
-            ffmpegLocation: ffmpeg,
-            extractAudio: format === 'mp3',
-            audioFormat: format === 'mp3' ? 'mp3' : undefined,
-            format: format === 'video' ? 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]' : undefined,
-            restrictFilenames: true,
+        const info = await ytdl.getInfo(url);
+        const title = info.videoDetails.title.replace(/[^\x00-\x7F]/g, "").replace(/[\\/:"*?<>|]/g, "_");
+        const fileName = `${title}.${format === 'mp3' ? 'mp3' : 'mp4'}`;
+        const filePath = path.join(downloadsDir, fileName);
+
+        res.writeHead(200, {
+            'Content-Type': 'text/plain',
+            'Transfer-Encoding': 'chunked'
+        });
+        res.write('Starting download...\n');
+
+        const options = format === 'mp3' 
+            ? { quality: 'highestaudio', filter: 'audioonly' }
+            : { quality: 'highest', filter: 'audioandvideo' };
+
+        const stream = ytdl(url, options);
+        const fileStream = fs.createWriteStream(filePath);
+
+        stream.pipe(fileStream);
+
+        stream.on('progress', (chunkLength, downloaded, total) => {
+            const percent = ((downloaded / total) * 100).toFixed(2);
+            res.write(`[download] ${percent}% of ${ (total / 1024 / 1024).toFixed(2) }MB\n`);
         });
 
-        process.stdout.on('data', (data) => {
-            const output = data.toString();
-            if (output.includes('[download]') || output.includes('[ExtractAudio]')) {
-                res.write(output);
-            }
+        stream.on('end', () => {
+            res.write('Download complete!\n');
+            res.write('The file is ready for download.\n');
+            res.end();
         });
 
-        process.stderr.on('data', (data) => {
-            console.error(`yt-dlp error: ${data}`);
-            res.write(`LOG: ${data}\n`);
-        });
-
-        process.on('close', (code) => {
-            if (code === 0) {
-                res.write('Download complete!\n');
-                res.write('The file is ready for download.\n');
-            } else {
-                res.write(`Download failed with code ${code}.\n`);
-            }
+        stream.on('error', (err) => {
+            console.error('Stream error:', err);
+            res.write(`ERROR: ${err.message}\n`);
             res.end();
         });
 
     } catch (error) {
-        console.error('Error executing yt-dlp for download:', error);
+        console.error('Error during download:', error);
         res.write(`Server error during download: ${error.message}\n`);
         res.end();
     }
