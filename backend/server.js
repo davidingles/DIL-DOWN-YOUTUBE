@@ -35,6 +35,9 @@ try {
 
 module.exports = app;
 
+// Health check
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
 // Endpoint to get video info
 app.get('/api/video-info', async (req, res) => {
     const { url } = req.query;
