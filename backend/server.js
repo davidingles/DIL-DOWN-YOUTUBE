@@ -21,6 +21,18 @@ if (!fs.existsSync(downloadsDir)) {
 }
 app.use('/downloads', express.static(downloadsDir));
 
+// YouTube Agent with Cookies support
+let ytdlAgent;
+try {
+    if (process.env.YOUTUBE_COOKIES) {
+        const cookies = JSON.parse(process.env.YOUTUBE_COOKIES);
+        ytdlAgent = ytdl.createAgent(cookies);
+        console.log('YouTube Agent created with cookies.');
+    }
+} catch (error) {
+    console.error('Error initializing YouTube Agent with cookies:', error.message);
+}
+
 module.exports = app;
 
 // Endpoint to get video info
@@ -32,7 +44,7 @@ app.get('/api/video-info', async (req, res) => {
     }
 
     try {
-        const info = await ytdl.getInfo(url);
+        const info = await ytdl.getInfo(url, { agent: ytdlAgent });
         
         res.json({
             id: info.videoDetails.videoId,
@@ -78,7 +90,7 @@ app.post('/api/download', async (req, res) => {
             ? { quality: 'highestaudio', filter: 'audioonly' }
             : { quality: 'highest', filter: 'audioandvideo' };
 
-        const stream = ytdl(url, options);
+        const stream = ytdl(url, { ...options, agent: ytdlAgent });
         const fileStream = fs.createWriteStream(filePath);
 
         stream.pipe(fileStream);
