@@ -1,5 +1,5 @@
 const express = require('express');
-const ytdl = require('@distube/ytdl-core');
+const ytdl = require('@ybd-project/ytdl-core');
 const ffmpeg = require('ffmpeg-static');
 const cors = require('cors');
 const path = require('path');
