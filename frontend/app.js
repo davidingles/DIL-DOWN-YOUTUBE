@@ -80,43 +80,14 @@ getInfoBtn.addEventListener('click', async () => {
 async function startDownload(format) {
     if (!currentUrl) return;
 
-    progressCard.classList.remove('hidden');
-    progressOutput.textContent = 'Iniciando descarga...\n';
+    // Direct download using browser
+    const downloadUrl = `${BACKEND_URL}/api/download?url=${encodeURIComponent(currentUrl)}&format=${format}`;
     
-    downloadMp3Btn.disabled = true;
-    downloadVideoBtn.disabled = true;
-
-    try {
-        const response = await fetch(`${BACKEND_URL}/api/download`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: currentUrl, format })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Fallo en la descarga');
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            const chunk = decoder.decode(value);
-            progressOutput.textContent += chunk;
-            progressOutput.scrollTop = progressOutput.scrollHeight;
-        }
-
-    } catch (err) {
-        progressOutput.textContent += `\nERROR: ${err.message}`;
-        showError(err.message);
-    } finally {
-        downloadMp3Btn.disabled = false;
-        downloadVideoBtn.disabled = false;
-    }
+    // We open in a new tab/window to trigger the download without losing current state
+    window.location.href = downloadUrl;
+    
+    // We show a small message
+    showError('Iniciando descarga en tu navegador...');
 }
 
 downloadMp3Btn.addEventListener('click', () => startDownload('mp3'));

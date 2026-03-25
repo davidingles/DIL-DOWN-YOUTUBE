@@ -70,8 +70,8 @@ app.get('/api/video-info', async (req, res) => {
 });
 
 // Endpoint to download video or MP3
-app.post('/api/download', async (req, res) => {
-    const { url, format } = req.body;
+app.get('/api/download', async (req, res) => {
+    const { url, format } = req.query;
 
     if (!url || !format) {
         return res.status(400).json({ error: 'URL and format are required' });
@@ -80,45 +80,32 @@ app.post('/api/download', async (req, res) => {
     try {
         const info = await ytdl.getInfo(url, { agent: ytdlAgent });
         const title = info.videoDetails.title.replace(/[^\x00-\x7F]/g, "").replace(/[\\/:"*?<>|]/g, "_");
-        const fileName = `${title}.${format === 'mp3' ? 'mp3' : 'mp4'}`;
-        const filePath = path.join(downloadsDir, fileName);
+        const extension = format === 'mp3' ? 'mp3' : 'mp4';
+        const fileName = `${title}.${extension}`;
 
-        res.writeHead(200, {
-            'Content-Type': 'text/plain',
-            'Transfer-Encoding': 'chunked'
-        });
-        res.write('Starting download...\n');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Type', format === 'mp3' ? 'audio/mpeg' : 'video/mp4');
 
         const options = format === 'mp3' 
             ? { quality: 'highestaudio', filter: 'audioonly' }
             : { quality: 'highest', filter: 'audioandvideo' };
 
         const stream = ytdl(url, { ...options, agent: ytdlAgent });
-        const fileStream = fs.createWriteStream(filePath);
-
-        stream.pipe(fileStream);
-
-        stream.on('progress', (chunkLength, downloaded, total) => {
-            const percent = ((downloaded / total) * 100).toFixed(2);
-            res.write(`[download] ${percent}% of ${ (total / 1024 / 1024).toFixed(2) }MB\n`);
-        });
-
-        stream.on('end', () => {
-            res.write('Download complete!\n');
-            res.write('The file is ready for download.\n');
-            res.end();
-        });
+        
+        stream.pipe(res);
 
         stream.on('error', (err) => {
             console.error('Stream error:', err);
-            res.write(`ERROR: ${err.message}\n`);
-            res.end();
+            if (!res.headersSent) {
+                res.status(500).json({ error: err.message });
+            }
         });
 
     } catch (error) {
         console.error('Error during download:', error);
-        res.write(`Server error during download: ${error.message}\n`);
-        res.end();
+        if (!res.headersSent) {
+            res.status(500).json({ error: error.message });
+        }
     }
 });
 
