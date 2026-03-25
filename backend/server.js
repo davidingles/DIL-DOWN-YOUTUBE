@@ -4,6 +4,7 @@ const ffmpeg = require('ffmpeg-static');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 const app = express();
 const PORT = 3000;
@@ -14,11 +15,13 @@ app.use(express.json());
 // Serving frontend
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-const downloadsDir = path.join(__dirname, 'downloads');
+const downloadsDir = path.join(os.tmpdir(), 'downloads');
 if (!fs.existsSync(downloadsDir)) {
-    fs.mkdirSync(downloadsDir);
+    fs.mkdirSync(downloadsDir, { recursive: true });
 }
 app.use('/downloads', express.static(downloadsDir));
+
+module.exports = app;
 
 // Endpoint to get video info
 app.get('/api/video-info', async (req, res) => {
@@ -108,7 +111,7 @@ app.post('/api/download', async (req, res) => {
         process.on('close', (code) => {
             if (code === 0) {
                 res.write('Download complete!\n');
-                res.write('File saved in backend/downloads folder.\n');
+                res.write('The file is ready for download.\n');
             } else {
                 res.write(`Download failed with code ${code}.\n`);
             }
@@ -122,6 +125,8 @@ app.post('/api/download', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Backend server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`Backend server running on http://localhost:${PORT}`);
+    });
+}

@@ -1,4 +1,4 @@
-const BACKEND_URL = 'http://localhost:3000';
+const BACKEND_URL = '';
 
 // Elements
 const youtubeUrlInput = document.getElementById('youtubeUrl');
