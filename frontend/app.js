@@ -68,7 +68,7 @@ getInfoBtn.addEventListener('click', async () => {
             showError(data.error || 'Error al obtener información del video.');
         }
     } catch (err) {
-        showError('No se pudo conectar con el servidor.');
+        showError(`No se pudo conectar con el servidor: ${err.message}`);
     } finally {
         btnText.classList.remove('hidden');
         btnLoader.classList.add('hidden');
